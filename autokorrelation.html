@@ -1,0 +1,178 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Autokorrelationstest for Math.random()</title>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+	<style>
+		body {
+			font-family: system-ui;
+			margin: 12px
+		}
+
+		#main {
+			width: 900px;
+			height: 420px;
+		}
+
+		.controls {
+			margin-bottom: 8px;
+			display: flex;
+			justify-content: space-between;
+		}
+
+		label {
+			display: inline-block;
+		}
+
+		#plot {
+			border: 1px solid rgb(118, 118, 118);
+			display: block;
+			margin-top: 10px
+		}
+	</style>
+
+	<script>
+		(() => {
+			const beregnAutokorrelation = (sekvens, k) => {
+				const N = sekvens.length;
+				if (k >= N - 1) return 0;
+
+				const sum = sekvens.reduce((acc, val) => acc + val, 0);
+				const gennemsnit = sum / N;
+
+				let tæller = 0;
+				let nævner = 0;
+
+				for (let i = 0; i < N - k; i++) {
+					tæller += (sekvens[i] - gennemsnit) * (sekvens[i + k] - gennemsnit);
+				}
+
+				for (let i = 0; i < N; i++) {
+					nævner += (sekvens[i] - gennemsnit) ** 2;
+				}
+
+				if (nævner === 0) return 0;
+
+				return tæller / nævner;
+			}
+
+			const genererSekvens = (antalSamples) => {
+				const sekvens = new Array(antalSamples);
+				for (let i = 0; i < antalSamples; i++) {
+					sekvens[i] = Math.random();
+				}
+				return sekvens;
+			}
+
+			let graf;
+			window.run = () => {
+				if (graf) graf.destroy();
+
+				const antalSamples = Number(document.getElementById("N").value);
+				const maxLag = Number(document.getElementById("maxLag").value); // k
+
+				const sekvens = genererSekvens(antalSamples);
+				const autokorrelationer = [];
+				const lagLabels = [];
+
+				for (let k = 1; k <= maxLag; k++) {
+					autokorrelationer.push(beregnAutokorrelation(sekvens, k));
+					lagLabels.push(k);
+				}
+
+				const konfidensGrænse = 1 / Math.sqrt(antalSamples) * 2;
+
+				const øvreGrænse = new Array(maxLag).fill(konfidensGrænse);
+				const nedreGrænse = new Array(maxLag).fill(-konfidensGrænse);
+
+				graf = new Chart(document.getElementById('plot'), {
+					type: 'bar',
+					data: {
+						labels: lagLabels,
+						datasets: [{
+							label: 'Autokorrelationskoefficient r_k',
+							data: autokorrelationer,
+							backgroundColor: 'rgba(100, 150, 240, 0.8)',
+							borderColor: 'rgba(100, 150, 240, 1)',
+							type: 'bar'
+						}, {
+							label: '+95% Konfidensgrænse',
+							data: øvreGrænse,
+							type: 'line',
+							borderColor: 'rgba(200, 0, 0, 1.0)',
+							borderDash: [5, 5],
+							pointRadius: 0,
+							fill: false
+						}, {
+							label: '-95% Konfidensgrænse',
+							data: nedreGrænse,
+							type: 'line',
+							borderColor: 'rgba(200, 0, 0, 1.0)',
+							borderDash: [5, 5],
+							pointRadius: 0,
+							fill: false
+						}]
+					},
+					options: {
+						plugins: {
+							title: {
+								display: true,
+								text: `Autokorrelationstest for Math.random(). N=${antalSamples}, k=${maxLag}`
+							},
+							legend: {
+								display: true,
+								position: 'top'
+							},
+							tooltip: {
+								mode: 'index',
+								intersect: false
+							}
+						},
+						scales: {
+							x: {
+								title: {
+									display: true,
+									text: 'Lag (k)'
+								}
+							},
+							y: {
+								title: {
+									display: true,
+									text: 'Autokorrelationskoefficient'
+								},
+								min: -0.1,
+								max: 0.1
+							}
+						}
+					}
+				});
+			}
+
+			document.addEventListener('DOMContentLoaded', run);
+		})();
+	</script>
+</head>
+
+<body>
+	<div id="main">
+		<div class="controls">
+			<label>N</label><input id="N" type="number" value="1024">
+			<label>Maks Lag (k)</label><input id="maxLag" type="number" value="20" min="1">
+			<button id="run" onclick="window.run()">Kør</button>
+		</div>
+
+		<!-- TODO: Lav custom PRNG implementering. Gennem Console eller eval? -->
+
+		<canvas id="plot" width="900" height="420"></canvas>
+
+		<div id="footer">
+			<p>
+				Hvis søjlerne overskrider de stiplede røde linjer,
+				indikerer det en signifikant autokorrelation (afhængighed) ved det pågældende lag (k).
+			</p>
+		</div>
+	</div>
+</body>
+
+</html>

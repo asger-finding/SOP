@@ -1,0 +1,201 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Beregnet vs Teoretisk Chi² (χ²) for Math.random()</title>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+	<style>
+		body {
+			font-family: system-ui;
+			margin: 12px
+		}
+
+		#main {
+			width: 900px;
+			height: 420px;
+		}
+
+		.controls {
+			margin-bottom: 8px;
+			display: flex;
+			justify-content: space-between;
+		}
+
+		label {
+			display: inline-block;
+		}
+
+		#plot {
+			border: 1px solid rgb(118, 118, 118);
+			display: block;
+			margin-top: 10px
+		}
+	</style>
+
+	<script>
+		(() => {
+			// Kilde for gammafunktion: https://stackoverflow.com/a/15454784
+			// Hentet 07. dec. 2025
+			const g = 7;
+			const C = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+			const gamma = (z) => {
+				if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+				else {
+					z -= 1;
+
+					let x = C[0];
+					for (let i = 1; i < g + 2; i++) x += C[i] / (z + i);
+
+					const t = z + g + 0.5;
+					return Math.sqrt(2 * Math.PI) * Math.pow(t, (z + 0.5)) * Math.exp(-t) * x;
+				}
+			}
+
+			const chi2Densitet = (værdi, frihedsgrader) => {
+				if (værdi < 0) return 0;
+				const halv = frihedsgrader / 2;
+				return 1 / (2 ** halv * gamma(halv)) * værdi ** (halv - 1) * Math.exp(-værdi / 2);
+			}
+
+			const beregnChi2 = (antalSamples, antalBins) => {
+				const tællere = new Array(antalBins).fill(0);
+				for (let sample = 0; sample < antalSamples; sample++) tællere[Math.floor(Math.random() * antalBins)]++;
+
+				const forventet = antalSamples / antalBins;
+				let chi2Sum = 0;
+				for (let bin = 0; bin < antalBins; bin++) {
+					const forskel = tællere[bin] - forventet;
+					chi2Sum += (forskel * forskel) / forventet;
+				}
+				return chi2Sum;
+			}
+
+			const lavHistogram = (værdier, antalBins, maksimum) => {
+				const histogram = new Array(antalBins).fill(0);
+				const binBredde = maksimum / antalBins;
+				for (const værdi of værdier) {
+					const binIndeks = Math.min(antalBins - 1, Math.floor(værdi / binBredde));
+					histogram[binIndeks]++;
+				}
+				return histogram;
+			}
+
+			let graf;
+			window.run = () => {
+				if (graf) graf.destroy();
+
+				const antalBins = Number(document.getElementById("K").value);
+				const antalSamples = Number(document.getElementById("N").value);
+				const antalGentagelser = Number(document.getElementById("trials").value);
+
+				const chi2Værdier = [];
+				for (let gentagelse = 0; gentagelse < antalGentagelser; gentagelse++) chi2Værdier.push(beregnChi2(antalSamples, antalBins));
+
+				const maksimalChi2 = Math.max(...chi2Værdier);
+				const histogramBins = 60;
+				const histogram = lavHistogram(chi2Værdier, histogramBins, maksimalChi2);
+				const binLabels = [...Array(histogramBins)].map((_, i) =>
+					(i * maksimalChi2 / histogramBins).toFixed(1)
+				);
+
+				const frihedsgrader = antalBins - 1;
+
+				const teoretiskFordeling = [...Array(histogramBins)].map((_, i) => {
+					const xVærdi = i * maksimalChi2 / histogramBins;
+					return chi2Densitet(xVærdi, frihedsgrader);
+				});
+
+				graf = new Chart(document.getElementById('plot'), {
+					type: 'bar',
+					data: {
+						labels: binLabels,
+						datasets: [{
+							label: 'Teoretisk Sandsynlighedstæthed',
+							data: teoretiskFordeling,
+							type: 'line',
+							pointRadius: 0,
+							borderColor: 'rgba(200, 0, 0, 1.0)',
+							yAxisID: 'y1'
+						}, {
+							label: 'Beregnet Frekvens',
+							data: histogram,
+							backgroundColor: 'rgba(100, 150, 240, 0.5)',
+							borderColor: 'rgba(100, 150, 240, 1)',
+							yAxisID: 'y0'
+						}]
+					},
+					options: {
+						plugins: {
+							title: {
+								display: true,
+								text: `χ²-test på Math.random(). K=${antalBins}, N=${antalSamples}, trials=${antalGentagelser}`
+							},
+							legend: {
+								display: true,
+								position: 'top'
+							},
+							tooltip: {
+								mode: 'index',
+								intersect: false
+							}
+						},
+						scales: {
+							x: {
+								title: {
+									display: true,
+									text: 'χ²-værdien'
+								}
+							},
+							y0: {
+								type: 'linear',
+								position: 'left',
+								title: {
+									display: true,
+									text: 'Frekvens (Antal kørsel)'
+								},
+								beginAtZero: true
+							},
+							y1: {
+								type: 'linear',
+								position: 'right',
+								grid: {
+									drawOnChartArea: false
+								},
+								title: {
+									display: true,
+									text: 'Sandsynlighedstæthed (PDF)'
+								},
+								beginAtZero: true
+							}
+						}
+					}
+				});
+			}
+
+			document.addEventListener('DOMContentLoaded', run);
+		})();
+	</script>
+</head>
+
+<body>
+	<div id="main">
+		<div class="controls">
+			<label>K</label><input id="K" type="number" value="10">
+			<label>N</label><input id="N" type="number" value="1000">
+			<label>Kørsler</label><input id="trials" type="number" value="2000">
+			<button id="run" onclick="window.run()">Kør</button>
+		</div>
+
+		<!-- TODO: Lav custom PRNG implementering. Gennem Console eller eval? -->
+
+		<canvas id="plot" width="900" height="420"></canvas>
+
+		<div id="footer">
+			<p>Tabelværdier for kritiske χ² værdier for højre hale fås ved <a href="https://www.chisquaretable.net/"
+					target="_blank">www.chisquaretable.net</a> (f.eks. <code>16.919</code> ved <code>α=P=0,05</code>
+				(5%) og <code>DF=9</code>)</p>
+		</div>
+	</div>
+</body>
+
+</html>
