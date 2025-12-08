@@ -81,6 +81,35 @@
 			}
 		}
 
+		class XorShift128 {
+			constructor(seed1 = 1, seed2 = 2, seed3 = 3, seed4 = 4) {
+				this.x = new Uint32Array(4);
+				this.x[0] = seed1 >>> 0;
+				this.x[1] = seed2 >>> 0;
+				this.x[2] = seed3 >>> 0;
+				this.x[3] = seed4 >>> 0;
+			}
+
+			next() {
+				let t = this.x[3];
+				let s = this.x[0];
+				
+				this.x[3] = this.x[2];
+				this.x[2] = this.x[1];
+				this.x[1] = s;
+
+				t ^= t << 11;
+				t ^= t >>> 8;
+				this.x[0] = t ^ s ^ (s >>> 19);
+				
+				return this.x[0];
+			}
+
+			random() {
+				return this.next() / 0x100000000;
+			}
+		}
+
 		class LCG {
 			constructor(seed = 1) {
 				this.a = 1103515245;
@@ -100,7 +129,8 @@
 			}
 		}
 
-		window.xor = new XorShift128Plus(1n, 2n);
+		window.xorshift128plus = new XorShift128Plus(1n, 2n);
+		window.xorshift128 = new XorShift128(1, 2, 3, 4);
 		window.LCG = new LCG(1);
 	</script>
 
@@ -176,8 +206,11 @@
 					case 'mathRandom':
 						prngFunction = Math.random;
 						break;
+					case 'xorshift128plus':
+						prngFunction = () => window.xorshift128plus.random();
+						break;
 					case 'xorshift128':
-						prngFunction = () => window.xor.random();
+						prngFunction = () => window.xorshift128.random();
 						break;
 					case 'lcg':
 						prngFunction = () => window.LCG.random();
@@ -315,7 +348,8 @@
 				<label for="prngSelect">PRNG</label>
 				<select id="prngSelect" onchange="window.toggleCustomArea()">
 					<option value="mathRandom" selected>Math.random() embedded</option>
-					<option value="xorshift128">Xorshift128+ egen implementering</option>
+					<option value="xorshift128plus">Xorshift128+ i JS (egen seeds)</option>
+					<option value="xorshift128">Xorshift128 i JS (egen seeds)</option>
 					<option value="lcg">LCG (glibc parametre)</option>
 					<option value="custom">Custom</option>
 				</select>
