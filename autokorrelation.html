@@ -2,7 +2,7 @@
 
 <head>
 	<meta charset="utf-8">
-	<title>Autokorrelationstest for Math.random()</title>
+	<title>Autokorrelationstest for PRNG</title>
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 	<style>
 		body {
@@ -19,6 +19,14 @@
 			margin-bottom: 8px;
 			display: flex;
 			justify-content: space-between;
+			align-items: center;
+			flex-wrap: wrap;
+		}
+		
+		.control-group {
+			display: flex;
+			align-items: center;
+			gap: 8px;
 		}
 
 		label {
@@ -32,137 +40,276 @@
 		}
 	</style>
 
-	<script>
-		(() => {
-			const beregnAutokorrelation = (sekvens, k) => {
-				const N = sekvens.length;
-				if (k >= N - 1) return 0;
-
-				const sum = sekvens.reduce((acc, val) => acc + val, 0);
-				const gennemsnit = sum / N;
-
-				let tæller = 0;
-				let nævner = 0;
-
-				for (let i = 0; i < N - k; i++) {
-					tæller += (sekvens[i] - gennemsnit) * (sekvens[i + k] - gennemsnit);
-				}
-
-				for (let i = 0; i < N; i++) {
-					nævner += (sekvens[i] - gennemsnit) ** 2;
-				}
-
-				if (nævner === 0) return 0;
-
-				return tæller / nævner;
+	<script type="module">
+		class XorShift128Plus {
+			constructor(seed1 = 1, seed2 = 2) {
+				this.state0 = this.to64bit(seed1);
+				this.state1 = this.to64bit(seed2);
 			}
 
-			const genererSekvens = (antalSamples) => {
-				const sekvens = new Array(antalSamples);
-				for (let i = 0; i < antalSamples; i++) {
-					sekvens[i] = Math.random();
+			to64bit(value) {
+				if (typeof value === 'bigint') {
+					return value & 0xFFFFFFFFFFFFFFFFn;
 				}
-				return sekvens;
+				if (Array.isArray(value)) {
+					return (BigInt(value[0]) << 32n) | BigInt(value[1]);
+				}
+				return BigInt(value) & 0xFFFFFFFFFFFFFFFFn;
 			}
 
-			let graf;
-			window.run = () => {
-				if (graf) graf.destroy();
+			// xorshift128+ algoritmen
+			next() {
+				let s1 = this.state0;
+				let s0 = this.state1;
 
-				const antalSamples = Number(document.getElementById("N").value);
-				const maxLag = Number(document.getElementById("maxLag").value); // k
+				this.state0 = s0;
 
-				const sekvens = genererSekvens(antalSamples);
-				const autokorrelationer = [];
-				const lagLabels = [];
+				s1 ^= (s1 << 23n) & 0xFFFFFFFFFFFFFFFFn;
+				s1 ^= s1 >> 17n;
+				s1 ^= s0;
+				s1 ^= s0 >> 26n;
 
-				for (let k = 1; k <= maxLag; k++) {
-					autokorrelationer.push(beregnAutokorrelation(sekvens, k));
-					lagLabels.push(k);
+				this.state1 = s1 & 0xFFFFFFFFFFFFFFFFn;
+
+				const output = (s0 + s1) & 0xFFFFFFFFFFFFFFFFn;
+				return output;
+			}
+
+			random() {
+				const output = this.next();
+				const top52 = output >> 12n;
+				return Number(top52) / 4503599627370496;
+			}
+		}
+
+		class LCG {
+			constructor(seed = 1) {
+
+				this.a = 1103515245;
+				this.c = 12345;
+				this.m = 2**32;
+
+				this.state = seed >>> 0;
+			}
+
+			// LCG algoritmen
+			next() {
+				this.state = ((this.a * this.state) + this.c) >>> 0;
+				return this.state;
+			}
+
+			random() {
+				const value = this.next();
+				return value / this.m;
+			}
+		}
+
+		window.xor = new XorShift128Plus(1n, 2n);
+		window.LCG = new LCG(1);
+	</script>
+
+	<script type="module">
+		const beregnAutokorrelation = (sekvens, k) => {
+			const N = sekvens.length;
+			if (k >= N - 1) return 0;
+
+			const sum = sekvens.reduce((acc, val) => acc + val, 0);
+			const gennemsnit = sum / N;
+
+			let tæller = 0;
+			let nævner = 0;
+
+			for (let i = 0; i < N - k; i++) {
+				tæller += (sekvens[i] - gennemsnit) * (sekvens[i + k] - gennemsnit);
+			}
+
+			for (let i = 0; i < N; i++) {
+				nævner += (sekvens[i] - gennemsnit) ** 2;
+			}
+
+			if (nævner === 0) return 0;
+
+			return tæller / nævner;
+		}
+
+		const genererSekvens = (antalSamples, prngType) => {
+			const sekvens = new Array(antalSamples);
+			let prngFunction;
+
+			switch (prngType) {
+				case 'mathRandom':
+					prngFunction = Math.random;
+					break;
+				case 'xorshift128':
+					prngFunction = () => window.xor.random();
+					break;
+				case 'lcg':
+					prngFunction = () => window.LCG.random();
+					break;
+				case 'custom':
+					if (typeof window.customPRNG === 'function') {
+						prngFunction = window.customPRNG;
+					} else {
+						alert("customPRNG() er ikke defineret. Bruger Math.random() som fallback.");
+						prngFunction = Math.random;
+					}
+					break;
+				default:
+					prngFunction = Math.random;
+			}
+
+			for (let i = 0; i < antalSamples; i++) {
+				sekvens[i] = prngFunction();
+			}
+			return sekvens;
+		}
+
+		window.toggleCustomArea = () => {
+			const select = document.getElementById("prngSelect");
+			const customArea = document.getElementById("customPrngArea");
+			if (select.value === 'custom') {
+				customArea.style.display = 'block';
+			} else {
+				customArea.style.display = 'none';
+			}
+		}
+
+		let graf;
+		window.run = () => {
+			if (graf) graf.destroy();
+
+			const antalSamples = Number(document.getElementById("N").value);
+			const maxLag = Number(document.getElementById("maxLag").value); // k
+			const prngType = document.getElementById("prngSelect").value;
+			let prngNavn = document.getElementById("prngSelect").options[document.getElementById("prngSelect").selectedIndex].text;
+
+			if (prngType === 'custom') {
+				const customCode = document.getElementById("customCode").value;
+				try {
+					eval(`(function() { ${customCode} })();`);
+					prngNavn = 'Custom PRNG';
+				} catch (e) {
+					alert(`Fejl ved evaluering af Custom PRNG kode: ${e.message}`);
+					return;
 				}
+			}
 
-				const konfidensGrænse = 1 / Math.sqrt(antalSamples) * 2;
 
-				const øvreGrænse = new Array(maxLag).fill(konfidensGrænse);
-				const nedreGrænse = new Array(maxLag).fill(-konfidensGrænse);
+			const sekvens = genererSekvens(antalSamples, prngType);
+			const autokorrelationer = [];
+			const lagLabels = [];
 
-				graf = new Chart(document.getElementById('plot'), {
-					type: 'bar',
-					data: {
-						labels: lagLabels,
-						datasets: [{
-							label: 'Autokorrelationskoefficient r_k',
-							data: autokorrelationer,
-							backgroundColor: 'rgba(100, 150, 240, 0.8)',
-							borderColor: 'rgba(100, 150, 240, 1)',
-							type: 'bar'
-						}, {
-							label: '+95% Konfidensgrænse',
-							data: øvreGrænse,
-							type: 'line',
-							borderColor: 'rgba(200, 0, 0, 1.0)',
-							borderDash: [5, 5],
-							pointRadius: 0,
-							fill: false
-						}, {
-							label: '-95% Konfidensgrænse',
-							data: nedreGrænse,
-							type: 'line',
-							borderColor: 'rgba(200, 0, 0, 1.0)',
-							borderDash: [5, 5],
-							pointRadius: 0,
-							fill: false
-						}]
+			for (let k = 1; k <= maxLag; k++) {
+				autokorrelationer.push(beregnAutokorrelation(sekvens, k));
+				lagLabels.push(k);
+			}
+
+			const konfidensGrænse = 1 / Math.sqrt(antalSamples) * 2;
+
+			const øvreGrænse = new Array(maxLag).fill(konfidensGrænse);
+			const nedreGrænse = new Array(maxLag).fill(-konfidensGrænse);
+
+			graf = new Chart(document.getElementById('plot'), {
+				type: 'bar',
+				data: {
+					labels: lagLabels,
+					datasets: [{
+						label: 'Autokorrelationskoefficient r_k',
+						data: autokorrelationer,
+						backgroundColor: 'rgba(100, 150, 240, 0.8)',
+						borderColor: 'rgba(100, 150, 240, 1)',
+						type: 'bar'
+					}, {
+						label: '+95% Konfidensgrænse',
+						data: øvreGrænse,
+						type: 'line',
+						borderColor: 'rgba(200, 0, 0, 1.0)',
+						borderDash: [5, 5],
+						pointRadius: 0,
+						fill: false
+					}, {
+						label: '-95% Konfidensgrænse',
+						data: nedreGrænse,
+						type: 'line',
+						borderColor: 'rgba(200, 0, 0, 1.0)',
+						borderDash: [5, 5],
+						pointRadius: 0,
+						fill: false
+					}]
+				},
+				options: {
+					plugins: {
+						title: {
+							display: true,
+							text: `Autokorrelationstest for ${prngNavn}. N=${antalSamples}, k=${maxLag}`
+						},
+						legend: {
+							display: true,
+							position: 'top'
+						},
+						tooltip: {
+							mode: 'index',
+							intersect: false
+						}
 					},
-					options: {
-						plugins: {
+					scales: {
+						x: {
 							title: {
 								display: true,
-								text: `Autokorrelationstest for Math.random(). N=${antalSamples}, k=${maxLag}`
-							},
-							legend: {
-								display: true,
-								position: 'top'
-							},
-							tooltip: {
-								mode: 'index',
-								intersect: false
+								text: 'Lag (k)'
 							}
 						},
-						scales: {
-							x: {
-								title: {
-									display: true,
-									text: 'Lag (k)'
-								}
+						y: {
+							title: {
+								display: true,
+								text: 'Autokorrelationskoefficient'
 							},
-							y: {
-								title: {
-									display: true,
-									text: 'Autokorrelationskoefficient'
-								},
-								min: -0.1,
-								max: 0.1
-							}
+							min: -0.1,
+							max: 0.1
 						}
 					}
-				});
-			}
+				}
+			});
+		}
 
-			document.addEventListener('DOMContentLoaded', run);
-		})();
+		document.addEventListener('DOMContentLoaded', () => {
+			 window.toggleCustomArea();
+			 window.run();
+		});
 	</script>
 </head>
 
 <body>
 	<div id="main">
 		<div class="controls">
-			<label>N</label><input id="N" type="number" value="1024">
-			<label>Maks Lag (k)</label><input id="maxLag" type="number" value="20" min="1">
+			<div class="control-group">
+				<label for="N">N</label><input id="N" type="number" value="1024">
+			</div>
+			<div class="control-group">
+				<label for="maxLag">Maks Lag (k)</label><input id="maxLag" type="number" value="20" min="1">
+			</div>
+			<div class="control-group">
+				<label for="prngSelect">PRNG</label>
+				<select id="prngSelect" onchange="window.toggleCustomArea()">
+					<option value="mathRandom" selected>Math.random() embedded</option>
+					<option value="xorshift128">Xorshift128+ egen implementering</option>
+					<option value="lcg">LCG (glibc parametre)</option>
+					<option value="custom">Custom</option>
+				</select>
+			</div>
 			<button id="run" onclick="window.run()">Kør</button>
 		</div>
 
-		<!-- TODO: Lav custom PRNG implementering. Gennem Console eller eval? -->
+		<div id="customPrngArea" style="display:none; margin-top: 8px; width: 100%;">
+			<label for="customCode">Custom PRNG-kode</label>
+			<textarea id="customCode" rows="4" cols="100">
+window.customPRNG = function() {
+	// Returner et tal mellem 0 og 1.
+	// TODO: jeg har ikke nogen vedholdig state for nyt run
+	return Math.random(); 
+}
+			</textarea>
+		</div>
 
 		<canvas id="plot" width="900" height="420"></canvas>
 
