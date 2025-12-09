@@ -361,8 +361,6 @@
 				const teoretiskVarians = 2 * frihedsgrader;
 				const varians = chi2Værdier.reduce((acc, val) => acc + (val - gennemsnit) ** 2, 0) / chi2Værdier.length;
 				const standardafvigelse = Math.sqrt(varians);
-				
-				// Kilde: https://www.chisquaretable.net/ ved α=0,05
 				const antalOverKritisk = chi2Værdier.filter(v => v > kritiskVærdi).length;
 				const procentOverKritisk = (antalOverKritisk / chi2Værdier.length * 100).toFixed(2);
 				console.log(antalOverKritisk, chi2Værdier.length)
