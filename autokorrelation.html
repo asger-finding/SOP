@@ -12,7 +12,6 @@
 
 		#main {
 			width: 900px;
-			height: 420px;
 		}
 
 		.controls {
@@ -36,7 +35,39 @@
 		#plot {
 			border: 1px solid rgb(118, 118, 118);
 			display: block;
-			margin-top: 10px
+			margin-top: 10px;
+			width: 900px;
+			height: 420px;
+		}
+
+		#results {
+			margin-top: 20px;
+		}
+
+		#results table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 10px;
+		}
+
+		#results th, #results td {
+			border: 1px solid #ddd;
+			padding: 8px;
+			text-align: left;
+		}
+
+		#results th {
+			background-color: #f2f2f2;
+			font-weight: bold;
+		}
+
+		#results tr:nth-child(even) {
+			background-color: #f9f9f9;
+		}
+
+		.violation {
+			color: #c00;
+			font-weight: bold;
 		}
 	</style>
 
@@ -57,7 +88,6 @@
 				return BigInt(value) & 0xFFFFFFFFFFFFFFFFn;
 			}
 
-			// xorshift128+ algoritmen
 			next() {
 				let s1 = this.state0;
 				let s0 = this.state1;
@@ -113,15 +143,12 @@
 
 		class LCG {
 			constructor(seed = 1) {
-
 				this.a = 1103515245;
 				this.c = 12345;
 				this.m = 2**32;
-
 				this.state = seed >>> 0;
 			}
 
-			// LCG algoritmen
 			next() {
 				this.state = ((this.a * this.state) + this.c) >>> 0;
 				return this.state;
@@ -133,7 +160,7 @@
 			}
 		}
 
-		window.xorshift128plus = new XorShift128Plus(1n, 2n);;
+		window.xorshift128plus = new XorShift128Plus(1n, 2n);
 		window.xorshift128 = new XorShift128(1, 2, 3, 4);
 		window.LCG = new LCG(1);
 	</script>
@@ -212,7 +239,7 @@
 			if (graf) graf.destroy();
 
 			const antalSamples = Number(document.getElementById("N").value);
-			const maxLag = Number(document.getElementById("maxLag").value); // k
+			const maxLag = Number(document.getElementById("maxLag").value);
 			const prngType = document.getElementById("prngSelect").value;
 			let prngNavn = document.getElementById("prngSelect").options[document.getElementById("prngSelect").selectedIndex].text;
 
@@ -227,7 +254,6 @@
 				}
 			}
 
-
 			const sekvens = genererSekvens(antalSamples, prngType);
 			const autokorrelationer = [];
 			const lagLabels = [];
@@ -238,7 +264,6 @@
 			}
 
 			const konfidensGrænse = 1 / Math.sqrt(antalSamples) * 2;
-
 			const øvreGrænse = new Array(maxLag).fill(konfidensGrænse);
 			const nedreGrænse = new Array(maxLag).fill(-konfidensGrænse);
 
@@ -303,11 +328,59 @@
 					}
 				}
 			});
+
+			let overskridninger = 0;
+			let maxOverskridning = 0;
+			let maxOverskridningLag = 0;
+
+			for (let i = 0; i < autokorrelationer.length; i++) {
+				const r_k = autokorrelationer[i];
+				const overskrider = Math.abs(r_k) > konfidensGrænse;
+				if (overskrider) {
+					overskridninger++;
+					if (Math.abs(r_k) > Math.abs(maxOverskridning)) {
+						maxOverskridning = r_k;
+						maxOverskridningLag = i + 1;
+					}
+				}
+			}
+
+			let overskredetPct = (overskridninger / autokorrelationer.length) * 100;
+
+			document.getElementById('results').innerHTML = `
+				<h3>Statistik</h3>
+				<table>
+					<tr>
+						<th>Parameter</th>
+						<th>Værdi</th>
+					</tr>
+					<tr>
+						<td>PRNG</td>
+						<td style="white-space: pre-wrap;">${prngNavn}\nN = ${antalSamples}\nk = ${maxLag}</td>
+					</tr>
+					<tr>
+						<td>Konfidensgrænse (95%)</td>
+						<td>±${konfidensGrænse.toFixed(6)}</td>
+					</tr>
+					<tr>
+						<td>Antal overtrædelser</td>
+						<td class="${overskridninger > 0 ? 'violation' : ''}">${overskridninger} / ${maxLag}</td>
+					</tr>
+					<tr>
+						<td>Største afvigelse</td>
+						<td class="${overskridninger > 0 ? 'violation' : ''}">${maxOverskridning.toFixed(6)} ved k=${maxOverskridningLag}</td>
+					</tr>
+					<tr>
+						<td>Pct. overskredet</td>
+						<td class="${overskredetPct > 5 ? 'violation' : ''}">${overskredetPct.toFixed(2)}%</td>
+					</tr>
+				</table>
+			`;
 		}
 
 		document.addEventListener('DOMContentLoaded', () => {
-			 window.toggleCustomArea();
-			 window.run();
+			window.toggleCustomArea();
+			window.run();
 		});
 	</script>
 </head>
@@ -346,6 +419,8 @@ window.customPRNG = function() {
 		</div>
 
 		<canvas id="plot" width="900" height="420"></canvas>
+
+		<div id="results"></div>
 
 		<div id="footer">
 			<p>

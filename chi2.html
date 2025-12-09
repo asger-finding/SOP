@@ -2,7 +2,7 @@
 
 <head>
 	<meta charset="utf-8">
-	<title>Chi² (χ²) Test for PRNG</title>
+	<title>Chi² (χ²)-test for PRNG</title>
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 	<style>
 		body {
@@ -37,6 +37,36 @@
 			border: 1px solid rgb(118, 118, 118);
 			display: block;
 			margin-top: 10px
+		}
+
+		#results {
+			margin-top: 20px;
+		}
+
+		#results table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 10px;
+		}
+
+		#results th, #results td {
+			border: 1px solid #ddd;
+			padding: 8px;
+			text-align: left;
+		}
+
+		#results th {
+			background-color: #f2f2f2;
+			font-weight: bold;
+		}
+
+		#results tr:nth-child(even) {
+			background-color: #f9f9f9;
+		}
+
+		.violation {
+			color: #c00;
+			font-weight: bold;
 		}
 	</style>
 
@@ -242,15 +272,14 @@
 
 				const chi2Værdier = [];
 				for (let gentagelse = 0; gentagelse < antalGentagelser; gentagelse++) chi2Værdier.push(beregnChi2(antalSamples, antalBins, prngFunction));
-
+				
+				const frihedsgrader = antalBins - 1;
 				const maksimalChi2 = Math.max(...chi2Værdier);
 				const histogramBins = 60;
 				const histogram = lavHistogram(chi2Værdier, histogramBins, maksimalChi2);
 				const binLabels = [...Array(histogramBins)].map((_, i) =>
 					(i * maksimalChi2 / histogramBins).toFixed(1)
 				);
-
-				const frihedsgrader = antalBins - 1;
 
 				const teoretiskFordeling = [...Array(histogramBins)].map((_, i) => {
 					const xVærdi = i * maksimalChi2 / histogramBins;
@@ -322,6 +351,72 @@
 						}
 					}
 				});
+
+				const gennemsnit = chi2Værdier.reduce((a, b) => a + b, 0) / chi2Værdier.length;
+				const sorteret = [...chi2Værdier].sort((a, b) => a - b);
+				const median = sorteret[Math.floor(sorteret.length / 2)];
+				const min = Math.min(...chi2Værdier);
+				const max = Math.max(...chi2Værdier);
+				const teoretiskGennemsnit = frihedsgrader;
+				const teoretiskVarians = 2 * frihedsgrader;
+				const varians = chi2Værdier.reduce((acc, val) => acc + (val - gennemsnit) ** 2, 0) / chi2Værdier.length;
+				const standardafvigelse = Math.sqrt(varians);
+				
+				// Kilde: https://www.chisquaretable.net/ ved α=0,05
+				const kritiskVærdi = 16.919;
+				const antalOverKritisk = chi2Værdier.filter(v => v > kritiskVærdi).length;
+				const procentOverKritisk = (antalOverKritisk / chi2Værdier.length * 100).toFixed(2);
+
+				document.getElementById('results').innerHTML = `
+					<h3>Statistik</h3>
+					<table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; margin-top: 10px;">
+						<tr>
+							<th>Parameter</th>
+							<th>Værdi</th>
+							<th>Teoretisk Værdi</th>
+						</tr>
+						<tr>
+							<td>PRNG</td>
+							<td colspan="1" style="white-space: pre-wrap;">${prngNavn}\nK = ${antalBins}\nN = ${antalSamples}\nKørsler = ${antalGentagelser}</td>
+							<td>-</td>
+						</tr>
+						<tr>
+							<td>Gennemsnit</td>
+							<td>${gennemsnit.toFixed(3)}</td>
+							<td>${teoretiskGennemsnit.toFixed(3)}</td>
+						</tr>
+						<tr>
+							<td>Median</td>
+							<td>${median.toFixed(3)}</td>
+							<td>-</td>
+						</tr>
+						<tr>
+							<td>Standardafvigelse</td>
+							<td>${standardafvigelse.toFixed(3)}</td>
+							<td>${Math.sqrt(teoretiskVarians).toFixed(3)}</td>
+						</tr>
+						<tr>
+							<td>Minimum</td>
+							<td>${min.toFixed(3)}</td>
+							<td>-</td>
+						</tr>
+						<tr>
+							<td>Maksimum</td>
+							<td>${max.toFixed(3)}</td>
+							<td>-</td>
+						</tr>
+						<tr>
+							<td>Kritisk værdi (α=0.05)</td>
+							<td>-</td>
+							<td>${kritiskVærdi.toFixed(3)}</td>
+						</tr>
+						<tr>
+							<td>Over kritisk værdi</td>
+							<td class="${antalOverKritisk > antalGentagelser * 0.05 ? 'violation' : ''}">${antalOverKritisk} (${procentOverKritisk}%)</td>
+							<td>~${(antalGentagelser * 0.05).toFixed(0)} (5%)</td>
+						</tr>
+					</table>
+				`;
 			}
 
 			document.addEventListener('DOMContentLoaded', () => {
@@ -369,6 +464,8 @@ window.customPRNG = function() {
 		</div>
 
 		<canvas id="plot" width="900" height="420"></canvas>
+
+		<div id="results"></div>
 
 		<div id="footer">
 			<p>Tabelværdier for kritiske χ² værdier for højre hale fås ved <a href="https://www.chisquaretable.net/"
