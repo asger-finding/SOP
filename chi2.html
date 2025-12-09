@@ -11,8 +11,7 @@
 		}
 
 		#main {
-			width: 900px;
-			height: 420px;
+			width: 1200px;
 		}
 
 		.controls {
@@ -227,6 +226,7 @@
 				const antalBins = Number(document.getElementById("K").value);
 				const antalSamples = Number(document.getElementById("N").value);
 				const antalGentagelser = Number(document.getElementById("trials").value);
+				const kritiskVærdi = Number(document.getElementById("criticalValue").value);;
 				const prngType = document.getElementById("prngSelect").value;
 				let prngNavn = document.getElementById("prngSelect").options[document.getElementById("prngSelect").selectedIndex].text;
 
@@ -363,9 +363,9 @@
 				const standardafvigelse = Math.sqrt(varians);
 				
 				// Kilde: https://www.chisquaretable.net/ ved α=0,05
-				const kritiskVærdi = 16.919;
 				const antalOverKritisk = chi2Værdier.filter(v => v > kritiskVærdi).length;
 				const procentOverKritisk = (antalOverKritisk / chi2Værdier.length * 100).toFixed(2);
+				console.log(antalOverKritisk, chi2Værdier.length)
 
 				document.getElementById('results').innerHTML = `
 					<h3>Statistik</h3>
@@ -377,7 +377,7 @@
 						</tr>
 						<tr>
 							<td>PRNG</td>
-							<td colspan="1" style="white-space: pre-wrap;">${prngNavn}\nK = ${antalBins}\nN = ${antalSamples}\nKørsler = ${antalGentagelser}</td>
+							<td colspan="1" style="white-space: pre-wrap;">${prngNavn}\nK = ${antalBins}\nN = ${antalSamples}\nKørsler = ${antalGentagelser}\nKritisk værdi = ${kritiskVærdi}</td>
 							<td>-</td>
 						</tr>
 						<tr>
@@ -406,10 +406,6 @@
 							<td>-</td>
 						</tr>
 						<tr>
-							<td>Kritisk værdi (α=0.05)</td>
-							<td>-</td>
-							<td>${kritiskVærdi.toFixed(3)}</td>
-						</tr>
 						<tr>
 							<td>Over kritisk værdi</td>
 							<td class="${antalOverKritisk > antalGentagelser * 0.05 ? 'violation' : ''}">${antalOverKritisk} (${procentOverKritisk}%)</td>
@@ -438,6 +434,9 @@
 			</div>
 			<div class="control-group">
 				<label for="trials">Kørsler</label><input id="trials" type="number" value="2000">
+			</div>
+			<div class="control-group">
+				<label for="criticalValue"><a href="https://www.chisquaretable.net/" target="_blank">Kritisk værdi</a></label><input id="criticalValue" type="number" value="16.919">
 			</div>
 			<div class="control-group">
 				<label for="prngSelect">PRNG</label>
