@@ -3,7 +3,7 @@ import struct
 from typing import List, Optional
 
 class V8Solver:
-	def __init__(self, sekvens: List[float], transform: float = 1.0, bits_tilgængelige: int = 53):
+	def __init__(self, sekvens: List[float], transform: float = 1.0, bits_tilgængelige: int = 52):
 		self.state0, self.state1 = None, None
 		self.intern_sekvens = sekvens[::-1]
 		self.maske = 0xFFFFFFFFFFFFFFFF

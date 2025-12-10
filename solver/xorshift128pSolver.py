@@ -8,7 +8,7 @@ USAGE
    Det er fem værdier vi anvender til forudsigelsen
 
 3. Passer værdierne til dette script:
-   $ python xorshift128pSolver.py <tal1,tal2,tal3,...> [engine=v8|spidermonkey] [transform=1.0] [bits=53]
+   $ python xorshift128pSolver.py <tal1,tal2,tal3,...> [engine=v8|spidermonkey] [transform=1.0] [bits=52]
 
 Hvis vi har en successfuld løsning, printes værdierne i et array.
 """
@@ -23,7 +23,7 @@ RANDOM_NUMBERS_TO_GENERATE = 10
 
 def main():
 	if len(sys.argv) < 2:
-		print("Brug: python xorshift128pSolver.py <tal1,tal2,tal3,...> [engine=v8|spidermonkey] [transform=1.0] [bits=53]")
+		print("Brug: python xorshift128pSolver.py <tal1,tal2,tal3,...> [engine=v8|spidermonkey] [transform=1.0] [bits=52]")
 		sys.exit(1)
 
 	tal_input = sys.argv[1]
@@ -31,7 +31,7 @@ def main():
 	# Parse optional parameters
 	engine = "v8"
 	transform = 1.0
-	bits = 53
+	bits = 52
 	
 	for arg in sys.argv[2:]:
 		if arg.startswith("engine="):
